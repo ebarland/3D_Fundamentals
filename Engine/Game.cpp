@@ -20,11 +20,13 @@
 ******************************************************************************************/
 #include "MainWindow.h"
 #include "Game.h"
+#include "Cube.h"
+#include "Mat3.h"
 
-Game::Game( MainWindow& wnd )
+Game::Game(MainWindow& wnd)
 	:
-	wnd( wnd ),
-	gfx( wnd )
+	wnd(wnd),
+	gfx(wnd)
 {
 }
 
@@ -38,8 +40,66 @@ void Game::Go()
 
 void Game::UpdateModel()
 {
+	const float dt = 1.0f / 60.0f;
+
+	if (wnd.kbd.KeyIsPressed('Q'))
+	{
+		theta_y += clamp_angle(dt * dTheta);
+	}
+	if (wnd.kbd.KeyIsPressed('E'))
+	{
+		theta_y -= clamp_angle(dt * dTheta);
+	}
+	if (wnd.kbd.KeyIsPressed('W'))
+	{
+		theta_x += clamp_angle(dt * dTheta);
+	}
+	if (wnd.kbd.KeyIsPressed('S'))
+	{
+		theta_x -= clamp_angle(dt * dTheta);
+	}
+	if (wnd.kbd.KeyIsPressed('A'))
+	{
+		theta_z += clamp_angle(dt * dTheta);
+	}
+	if (wnd.kbd.KeyIsPressed('D'))
+	{
+		theta_z -= clamp_angle(dt * dTheta);
+	}
+	if (wnd.kbd.KeyIsPressed('R'))
+	{
+		offset_z += 2.0f * dt;
+		if (offset_z < 2.0f)
+			offset_z = 2.0f;
+	}
+	if (wnd.kbd.KeyIsPressed('F'))
+	{
+		offset_z -= 2.0f * dt;
+		if (offset_z < 2.0f)
+			offset_z = 2.0f;
+	}
 }
 
 void Game::ComposeFrame()
 {
+	Cube cube{ 1.0f };
+
+	IndexedLineList lines = cube.GetLines();
+
+	const Mat3 rot =
+		Mat3::RotationX(theta_x)*
+		Mat3::RotationY(theta_y)*
+		Mat3::RotationZ(theta_z);
+
+	for (auto &v : lines.vertices)
+	{
+		v *= rot;
+		v += {0.0f, 0.0f, offset_z};
+		pst.Transform(v);
+	}
+
+	for (auto i = lines.indeces.cbegin(), end = lines.indeces.cend(); i != end; std::advance(i, 2))
+	{
+		gfx.DrawLine(lines.vertices[*i], lines.vertices[*std::next(i)], Colors::White);
+	}
 }
