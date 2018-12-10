@@ -286,47 +286,97 @@ void Graphics::BeginFrame()
 	sysBuffer.Clear( Colors::Red );
 }
 
-
-//////////////////////////////////////////////////
-//           Graphics Exception
-Graphics::Exception::Exception( HRESULT hr,const std::wstring& note,const wchar_t* file,unsigned int line )
-	:
-	ChiliException( file,line,note ),
-	hr( hr )
-{}
-
-std::wstring Graphics::Exception::GetFullMessage() const
+void Graphics::DrawTriangle(const Vec2 & v0, const Vec2 & v1, const Vec2 & v2, Color c)
 {
-	const std::wstring empty = L"";
-	const std::wstring errorName = GetErrorName();
-	const std::wstring errorDesc = GetErrorDescription();
-	const std::wstring& note = GetNote();
-	const std::wstring location = GetLocation();
-	return    (!errorName.empty() ? std::wstring( L"Error: " ) + errorName + L"\n"
-		: empty)
-		+ (!errorDesc.empty() ? std::wstring( L"Description: " ) + errorDesc + L"\n"
-			: empty)
-		+ (!note.empty() ? std::wstring( L"Note: " ) + note + L"\n"
-			: empty)
-		+ (!location.empty() ? std::wstring( L"Location: " ) + location
-			: empty);
+	// create pointer to each vertex, in order to reorder all verticies from top to bottom
+	const Vec2 *pv0 = &v0;
+	const Vec2 *pv1 = &v1;
+	const Vec2 *pv2 = &v2;
+
+	// reorder verticies from bottom y to top y 
+	if (pv1->y < pv0->y) std::swap(pv0, pv1);
+	if (pv2->y < pv1->y) std::swap(pv1, pv2);
+	if (pv1->y < pv0->y) std::swap(pv0, pv1);
+
+	if (pv0->y == pv1->y) // flat bottom triangle
+	{
+		// order x-es so pv0 is largest
+		if (pv1->x < pv0->x) std::swap(pv0, pv1);
+		DrawFlatTopTriangle(*pv0, *pv1, *pv2, c);
+	}
+	else if (pv1->y == pv2->y) // flat bottom triangle
+	{
+		// order x-es so pv0 is largest
+		if (pv2->x < pv1->x) std::swap(pv1, pv2);
+		DrawFlatBottomTriangle(*pv0, *pv1, *pv2, c);
+	}
+	else // split triangle into two and draw each as flat top and flat bottom
+	{
+		//splitting vertex
+		const float alphaSplit = (pv1->y - pv0->y) / (pv2->y - pv0->y);
+		// splitting vertex intersection 
+		const Vec2 vi = *pv0 + (*pv2 - *pv0) * alphaSplit;
+
+		if (pv1->x < vi.x) // major right triangle 
+		{
+			DrawFlatBottomTriangle(*pv0, *pv1, vi, c);
+			DrawFlatTopTriangle(*pv1, vi, *pv2, c);
+		}
+		else // major left triangle
+		{
+			DrawFlatBottomTriangle(*pv0, vi, *pv1, c);
+			DrawFlatTopTriangle(vi, *pv1, *pv2, c);
+		}
+	}
 }
 
-std::wstring Graphics::Exception::GetErrorName() const
+void Graphics::DrawFlatTopTriangle(const Vec2 &v0, const Vec2 &v1, const Vec2 &v2, Color c)
 {
-	return DXGetErrorString( hr );
+	// calculate slopes in screen space
+	const float m0 = (v2.x - v0.x) / (v2.y - v0.y);
+	const float m1 = (v2.x - v1.x) / (v2.y - v1.y);
+
+	const int yStart = (int)ceil(v0.y - 0.5f); // hightest y point
+	const int yEnd = (int)ceil(v2.y - 0.5f); // lowest y point
+
+	for (int y = yStart; y < yEnd; ++y)
+	{
+		// for each line calculate start and end points in the x plane (mx + b); - v0.y and v1.y to offset from the top of the screen.
+		const float px0 = m0 * (float(y) + 0.5f - v0.y) + v0.x;
+		const float px1 = m1 * (float(y) + 0.5f - v1.y) + v1.x;
+
+		const int xStart = (int)ceil(px0 - 0.5f);
+		const int xEnd = (int)ceil(px1 - 0.5f);
+
+		for (int x = xStart; x < xEnd; ++x)
+		{
+			PutPixel(x, y, c);
+		}
+	}
 }
 
-std::wstring Graphics::Exception::GetErrorDescription() const
+void Graphics::DrawFlatBottomTriangle(const Vec2 & v0, const Vec2 & v1, const Vec2 & v2, Color c)
 {
-	std::array<wchar_t,512> wideDescription;
-	DXGetErrorDescription( hr,wideDescription.data(),wideDescription.size() );
-	return wideDescription.data();
-}
+	// clacualte slopes in screen space
+	const float m0 = (v1.x - v0.x) / (v1.y - v0.y);
+	const float m1 = (v2.x - v0.x) / (v2.y - v0.y);
 
-std::wstring Graphics::Exception::GetExceptionType() const
-{
-	return L"Chili Graphics Exception";
+	const float yStart = (int)(v0.y - 0.5f);
+	const float yEnd = (int)(v2.y - 0.5f);
+
+	for (int y = yStart; y <= yEnd; ++y)
+	{
+		const float px0 = m0 * (float(y) + 0.5f - v0.y) + v0.x;
+		const float px1 = m1 * (float(y) + 0.5f - v0.y) + v0.x;
+
+		const int xStart = (int)ceil(px0 - 0.5f);
+		const int xEnd = (int)ceil(px1 - 0.5f);
+
+		for (int x = xStart; x < xEnd; ++x)
+		{
+			PutPixel(x, y, c);
+		}
+	}
 }
 
 void Graphics::DrawLine( float x1,float y1,float x2,float y2,Color c )
@@ -381,3 +431,46 @@ void Graphics::DrawLine( float x1,float y1,float x2,float y2,Color c )
 		}
 	}
 }
+//////////////////////////////////////////////////
+//           Graphics Exception
+Graphics::Exception::Exception( HRESULT hr,const std::wstring& note,const wchar_t* file,unsigned int line )
+	:
+	ChiliException( file,line,note ),
+	hr( hr )
+{}
+
+std::wstring Graphics::Exception::GetFullMessage() const
+{
+	const std::wstring empty = L"";
+	const std::wstring errorName = GetErrorName();
+	const std::wstring errorDesc = GetErrorDescription();
+	const std::wstring& note = GetNote();
+	const std::wstring location = GetLocation();
+	return    (!errorName.empty() ? std::wstring( L"Error: " ) + errorName + L"\n"
+		: empty)
+		+ (!errorDesc.empty() ? std::wstring( L"Description: " ) + errorDesc + L"\n"
+			: empty)
+		+ (!note.empty() ? std::wstring( L"Note: " ) + note + L"\n"
+			: empty)
+		+ (!location.empty() ? std::wstring( L"Location: " ) + location
+			: empty);
+}
+
+std::wstring Graphics::Exception::GetErrorName() const
+{
+	return DXGetErrorString( hr );
+}
+
+std::wstring Graphics::Exception::GetErrorDescription() const
+{
+	std::array<wchar_t,512> wideDescription;
+	DXGetErrorDescription( hr,wideDescription.data(),wideDescription.size() );
+	return wideDescription.data();
+}
+
+std::wstring Graphics::Exception::GetExceptionType() const
+{
+	return L"Chili Graphics Exception";
+}
+
+

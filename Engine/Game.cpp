@@ -85,6 +85,7 @@ void Game::ComposeFrame()
 	Cube cube{ 1.0f };
 
 	IndexedLineList lines = cube.GetLines();
+	IndexedTriangleList triangles = cube.GetTriangles();
 
 	const Mat3 rot =
 		Mat3::RotationX(theta_x)*
@@ -98,8 +99,57 @@ void Game::ComposeFrame()
 		pst.Transform(v);
 	}
 
-	for (auto i = lines.indeces.cbegin(), end = lines.indeces.cend(); i != end; std::advance(i, 2))
+	for (auto &v : triangles.verticies)
 	{
-		gfx.DrawLine(lines.vertices[*i], lines.vertices[*std::next(i)], Colors::White);
+		v *= rot;
+		v += {0.0f, 0.0f, offset_z};
+	}
+
+	//for (auto i = lines.indeces.cbegin(), end = lines.indeces.cend(); i != end; std::advance(i, 2))
+	//{
+	//	gfx.DrawLine(lines.vertices[*i], lines.vertices[*std::next(i)], Colors::White);
+	//}
+
+	for (size_t v = 0; v < triangles.indicies.size() / 3; v++)
+	{
+		const Vec3 &v0 = triangles.verticies[triangles.indicies[v * 3]];
+		const Vec3 &v1 = triangles.verticies[triangles.indicies[v * 3 + 1]];
+		const Vec3 &v2 = triangles.verticies[triangles.indicies[v * 3 + 2]];
+		
+		const Vec3 &v01 = (v1 - v0);
+		const Vec3 &v02 = (v2 - v0);
+
+		// if triangle has cross product vector in the same direction as camera, the dot prod of these two vecs are negative, so cull this triangle
+		triangles.cullFlags[v] = v01 % v02 * v0 >= 0.0f;
+	}
+
+	// transform after backface culling
+	for (auto &v : triangles.verticies)
+	{
+		pst.Transform(v);
+	}
+
+	Color c;
+	std::vector<Color> colors
+	{
+	Color(255u, 255u, 255u),
+	Color(10u, 54u, 210u),
+	Color(0x80u, 0x80u, 0x80u),
+	Color(0xD3u, 0xD3u, 0xD3u),
+	Color(255u, 0u, 0u),
+	Color(0u, 255u, 0u),
+	Color(0u, 0u, 255u),
+	Color(255u, 255u, 0u),
+	Color(0u, 255u, 255u),
+	Color(255u, 0u, 255u),
+	Color(6u, 25u, 125u),
+	Color(23u, 155u, 55u)
+	};
+	int counter = 0;
+	for (auto i = triangles.indicies.cbegin(), end = triangles.indicies.cend(); i != end; std::advance(i, 3))
+	{
+		if (!triangles.cullFlags[counter])
+			gfx.DrawTriangle(triangles.verticies[*i], triangles.verticies[*std::next(i)], triangles.verticies[*std::next(i, 2)], colors[counter]);
+		counter++;
 	}
 }
